@@ -1,0 +1,184 @@
+---
+
+- name: "Configure ACI Tenant part"
+  hosts: ACI
+  gather_facts: no 
+  connection: local
+  tasks:
+    - name: Create ACI Tenant PROD
+      aci_tenant:
+        host: '{{ ansible_host }}'
+        username: '{{ username }}' 
+        #password: '{{ vault_#password }}'
+        private_key: '{{ playbook_dir }}/admin.key'
+        certificate_name: 'admin'
+        tenant: 'PROD'
+        description: 'Tenant Cisco Community PROD'
+        state: 'present'
+        validate_certs: 'no'
+
+    - name: Create Application Profile CSC (Cisco Support Community)
+      aci_ap:
+        host: '{{ ansible_host }}'
+        username: '{{ username }}' 
+        #password: '{{ vault_#password }}'
+        private_key: '{{ playbook_dir }}/admin.key'
+        certificate_name: 'admin'
+        tenant: 'PROD'
+        ap: 'CSC'
+        description: 'Application Profile CSC'
+        state: present
+        validate_certs: 'no'
+
+    - name: Add a new VRF to a tenant
+      aci_vrf:
+        host: '{{ ansible_host }}'
+        username: '{{ username }}' 
+        #password: '{{ vault_#password }}'
+        private_key: '{{ playbook_dir }}/admin.key'
+        certificate_name: 'admin'
+        vrf: 'CSC_VRF'
+        tenant: 'PROD'
+        descr: 'Create VRF CSC in APP CSC'
+        policy_control_preference: unenforced
+        policy_control_direction: ingress
+        state: present
+        validate_certs: 'no'
+
+    - name: Enable Preferred Group on VRF using aci rest api
+      aci_rest:
+        host: '{{ ansible_host }}'
+        username: '{{ username }}' 
+        #password: '{{ vault_#password }}'
+        private_key: '{{ playbook_dir }}/admin.key'
+        certificate_name: 'admin'
+        validate_certs: 'no'
+        method: post
+        path: /api/node/mo/uni/tn-PROD/ctx-CSC_VRF/any.json
+        content:
+          vzAny:
+            attributes:
+              dn: "uni/tn-PROD/ctx-CSC_VRF/any"
+              prefGrMemb: "enabled"
+
+    - name: Create Bridge Domain CSC BD
+      aci_bd:
+        host: "{{ ansible_host }}"
+        username: "{{ username }}"
+        #password: '{{ vault_#password }}'
+        private_key: '{{ playbook_dir }}/admin.key'
+        certificate_name: 'admin'
+        validate_certs: no
+        tenant: 'PROD'
+        bd: 'CSC_BD'
+        vrf: 'CSC_VRF'
+        enable_multicast: 'yes'
+        enable_routing: 'yes'
+        l2_unknown_unicast: 'flood'
+        l3_unknown_multicast: 'flood'
+        multi_dest: 'bd-flood'
+        arp_flooding: 'yes'
+        state: present
+
+    - name: Modify Bridge Domain CSC BD
+      aci_rest:
+        host: '{{ ansible_host }}'
+        username: '{{ username }}' 
+        #password: '{{ vault_#password }}'
+        private_key: '{{ playbook_dir }}/admin.key'
+        certificate_name: 'admin'
+        validate_certs: 'no'
+        method: post
+        path: /api/node/mo/uni/tn-PROD/BD-CSC_BD.json
+        content:
+          fvBD:
+            attributes:
+              dn: "uni/tn-PROD/BD-CSC_BD"
+              hostBasedRouting: "true"
+
+    - name: Create Bridge Domain Subnet CSC BD Subnet
+      aci_bd_subnet:
+        host: "{{ ansible_host }}"
+        username: "{{ username }}"
+        #password: '{{ vault_#password }}'
+        private_key: '{{ playbook_dir }}/admin.key'
+        certificate_name: 'admin'
+        validate_certs: no
+        tenant: 'PROD'
+        bd: 'CSC_BD'
+        gateway: '172.16.90.1'
+        mask: 24
+        scope: public
+        state: present
+
+    - name: Create CSC EPG
+      aci_epg:
+        host: "{{ ansible_host }}"
+        username: "{{ username }}"
+        #password: '{{ vault_#password }}'
+        private_key: '{{ playbook_dir }}/admin.key'
+        certificate_name: 'admin'
+        validate_certs: no
+        tenant: 'PROD'
+        ap: 'CSC'
+        epg: 'CSC_EPG'
+        description: 'Cisco Community demo EPG'
+        bd: 'CSC_BD'
+        preferred_group: yes
+        state: present
+
+    - name: Add physical domain to CSC EPG
+      aci_epg_to_domain:
+        host: "{{ ansible_host }}"
+        username: "{{ username }}"
+        #password: '{{ vault_#password }}'
+        private_key: '{{ playbook_dir }}/admin.key'
+        certificate_name: 'admin'
+        validate_certs: no
+        tenant: 'PROD'
+        ap: 'CSC'
+        epg: 'CSC_EPG'
+        domain: 'SERVERS_PHY_DOM'
+        domain_type: phys
+        state: present
+
+    - name: Attach VPC to CSC EPG
+      aci_static_binding_to_epg:
+        host: "{{ ansible_host }}"
+        username: "{{ username }}"
+        #password: '{{ vault_#password }}'
+        private_key: '{{ playbook_dir }}/admin.key'
+        certificate_name: 'admin'
+        validate_certs: no
+        tenant: 'PROD'
+        ap: 'CSC'
+        epg: 'CSC_EPG'
+        encap_id: 1012
+        deploy_immediacy: immediate
+        interface_mode: untagged
+        interface_type: vpc
+        pod_id: 1
+        leafs: '1001-1002'
+        interface: 'VPC_FTDDC1_1_IPG'
+        state: present
+
+    - name: Attach Interface to CSC EPG
+      aci_static_binding_to_epg:
+        host: "{{ ansible_host }}"
+        username: "{{ username }}"
+        #password: '{{ vault_#password }}'
+        private_key: '{{ playbook_dir }}/admin.key'
+        certificate_name: 'admin'
+        validate_certs: no
+        tenant: 'PROD'
+        ap: 'CSC'
+        epg: 'CSC_EPG'
+        encap_id: 1012
+        deploy_immediacy: immediate
+        interface_mode: untagged
+        interface_type: switch_port
+        pod_id: 1
+        leafs: 1001
+        interface: '1/38'
+        state: present
+
