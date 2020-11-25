@@ -1,0 +1,40 @@
+---
+#This is a playbook to create a tenant
+- name: Configure ACI
+  hosts: apic
+  connection: local
+  gather_facts: no
+  
+#Use a prompt to set username, password and the input file
+  vars_prompt:
+  - name: username
+    prompt: "Enter APIC username"
+    private: no
+  - name: password
+    prompt: "Enter APIC password"
+    private: yes
+  - name: inputfile
+    prompt: "Enter Excel input file without .xlsx"
+    private: no
+
+  tasks:
+  - name: Get facts from XLSX file
+    xls_to_facts:
+      src: "{{ inputfile }}.xlsx" #The source file 
+     
+  - name: Add tenant #Name of task
+    aci_tenant: #variable to create a tenant
+      host: "{{ ansible_host }}" #IP Address or hostname of APIC resolvable by Ansible control host
+      username: "{{ username }}" #The APIC username used for authentication
+      password: "{{ password }}" #The APIC password used for authentication
+      validate_certs: no #SSL certificates will not be validated
+      tenant: "{{ item.Name }}" #The name of tenant
+      description: "{{ item.Description }}" #Description for the tenant
+      state: "{{ item.State }}" #Use present or absent for adding or removing and use query for listing an object or multiple objects
+    with_items: "{{ spreadsheet_Tenant }}" #Use variable in script xls_to_facts
+    loop_control: #control the time (in seconds) between execution of items in a task loop
+      pause: 1
+      
+  - name: Copy ansible.log
+    command: mv ./log/ansible.log ./log/Log_{{ lookup('pipe', 'date +%Y%m%d-%H%M') }}_{{ inputfile }}_Tenant.log #change file log name
+    run_once: true

@@ -1,0 +1,27 @@
+---
+#This is a playbook to create a tenant
+- name: Configure ACI
+  hosts: apic
+  connection: local
+  gather_facts: no
+  
+#Use a prompt to set username, password and the input file
+  vars_prompt:
+  - name: username
+    prompt: "Enter APIC username"
+    private: no
+  - name: password
+    prompt: "Enter APIC password"
+    private: yes
+
+  tasks:     
+  - name: Add tenant #Name of task
+    aci_tenant: #variable to create a tenant
+      host: "{{ ansible_host }}" #IP Address or hostname of APIC resolvable by Ansible control host
+      username: "{{ username }}" #The APIC username used for authentication
+      password: "{{ password }}" #The APIC password used for authentication
+      validate_certs: no #SSL certificates will not be validated
+      tenant: PROD_OUM2
+      description: Ansible AWX TEST
+      state: absent
+    
